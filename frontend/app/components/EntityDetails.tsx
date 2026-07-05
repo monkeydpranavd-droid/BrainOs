@@ -126,8 +126,6 @@ export default function EntityDetails({ entity, onClose, onSelectEntity }: Entit
     }
   };
 
-  const Icon = getIcon(entity.type);
-
   return (
     <motion.div 
       initial={{ x: '100%', opacity: 0 }}
@@ -140,7 +138,7 @@ export default function EntityDetails({ entity, onClose, onSelectEntity }: Entit
       <div className="flex items-center justify-between pb-4 border-b border-zinc-900 mb-6">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center">
-            <Icon className="w-4 h-4 text-indigo-400" />
+            {React.createElement(getIcon(entity.type), { className: "w-4 h-4 text-indigo-400" })}
           </div>
           <div>
             <span className="text-[9px] uppercase tracking-wider text-indigo-400 font-mono font-bold">

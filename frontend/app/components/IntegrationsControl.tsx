@@ -18,7 +18,7 @@ export default function IntegrationsControl() {
     getIntegrations().then(setIntegrations);
   }, []);
 
-  const iconConfig: Record<string, { icon: any; iconColor: string }> = {
+  const iconConfig: Record<string, { icon: React.ComponentType<{ className?: string }>; iconColor: string }> = {
     slack: { icon: Slack, iconColor: 'text-pink-400 bg-pink-950/20 border-pink-900/30' },
     github: { icon: Github, iconColor: 'text-indigo-400 bg-indigo-950/20 border-indigo-900/30' },
     drive: { icon: HardDrive, iconColor: 'text-sky-400 bg-sky-950/20 border-sky-900/30' },

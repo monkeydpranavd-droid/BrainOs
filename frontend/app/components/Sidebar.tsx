@@ -1,6 +1,9 @@
 "use client";
 
-import React from 'react';
+import React from "react";
+import { useAuth } from "../providers/AuthProvider";
+import { OrganizationPicker } from "./auth/OrganizationPicker";
+import { WorkspacePicker } from "./auth/WorkspacePicker";
 import { 
   Search, 
   Share2, 
@@ -10,11 +13,9 @@ import {
   MessageSquare,
   BarChart3,
   Settings,
-  ChevronDown,
   Sparkles,
-  User,
-  Briefcase
-} from 'lucide-react';
+  LogOut
+} from "lucide-react";
 
 interface SidebarProps {
   currentTab: string;
@@ -23,22 +24,33 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ currentTab, setCurrentTab, syncStatus }: SidebarProps) {
+  const { user, logout } = useAuth();
+
   const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'company-ai', label: 'Company AI', icon: MessageSquare },
-    { id: 'documents', label: 'Documents', icon: FileText },
-    { id: 'search', label: 'Semantic Search', icon: Search },
-    { id: 'graph', label: 'Knowledge Graph', icon: Share2 },
-    { id: 'integrations', label: 'Integrations', icon: Activity },
-    { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-    { id: 'settings', label: 'Settings', icon: Settings },
+    { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { id: "company-ai", label: "Company AI", icon: MessageSquare },
+    { id: "documents", label: "Documents", icon: FileText },
+    { id: "search", label: "Semantic Search", icon: Search },
+    { id: "graph", label: "Knowledge Graph", icon: Share2 },
+    { id: "integrations", label: "Integrations", icon: Activity },
+    { id: "analytics", label: "Analytics", icon: BarChart3 },
+    { id: "settings", label: "Settings", icon: Settings },
   ];
+
+  const getInitials = (name: string) => {
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .substring(0, 2);
+  };
 
   return (
     <aside className="w-64 border-r border-zinc-800 bg-zinc-950 flex flex-col justify-between h-screen sticky top-0">
-      <div>
+      <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
         {/* Brand Logo */}
-        <div className="p-6 border-b border-zinc-800/80 flex items-center justify-between">
+        <div className="p-6 border-b border-zinc-850 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center font-bold text-sm tracking-wider text-white">
               B
@@ -53,9 +65,17 @@ export default function Sidebar({ currentTab, setCurrentTab, syncStatus }: Sideb
           </span>
         </div>
 
+        {/* Tenant Pickers */}
+        <div className="p-4 space-y-3 border-b border-zinc-900/60 shrink-0">
+          <OrganizationPicker />
+          <WorkspacePicker />
+        </div>
+
         {/* Sidebar Nav */}
-        <nav className="p-4 space-y-1.5">
-          <p className="text-[10px] font-bold text-zinc-600 tracking-wider px-3 mb-2 uppercase font-mono">Workspace</p>
+        <nav className="p-4 space-y-1.5 flex-1">
+          <p className="text-[10px] font-bold text-zinc-600 tracking-wider px-3 mb-2 uppercase font-mono">
+            Navigation
+          </p>
           {menuItems.map((item) => {
             const Icon = item.icon;
             const isActive = currentTab === item.id;
@@ -65,11 +85,11 @@ export default function Sidebar({ currentTab, setCurrentTab, syncStatus }: Sideb
                 onClick={() => setCurrentTab(item.id)}
                 className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200 cursor-pointer ${
                   isActive 
-                    ? 'bg-zinc-900 text-indigo-400 border border-zinc-805 shadow-[0_0_15px_rgba(99,102,241,0.08)]' 
-                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/50 border border-transparent'
+                    ? "bg-zinc-900 text-indigo-400 border border-zinc-805 shadow-[0_0_15px_rgba(99,102,241,0.08)]" 
+                    : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/50 border border-transparent"
                 }`}
               >
-                <Icon className={`w-4 h-4 ${isActive ? 'text-indigo-400' : 'text-zinc-500'}`} />
+                <Icon className={`w-4 h-4 ${isActive ? "text-indigo-400" : "text-zinc-500"}`} />
                 <span>{item.label}</span>
               </button>
             );
@@ -77,7 +97,7 @@ export default function Sidebar({ currentTab, setCurrentTab, syncStatus }: Sideb
         </nav>
 
         {/* Sync Indicator Card */}
-        <div className="px-4 mt-4">
+        <div className="px-4 py-2 shrink-0 mb-4">
           <div className="p-4 rounded-xl bg-zinc-900/40 border border-zinc-800/60">
             <div className="flex items-center justify-between mb-2">
               <span className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider font-mono">AI Processing</span>
@@ -88,33 +108,23 @@ export default function Sidebar({ currentTab, setCurrentTab, syncStatus }: Sideb
             </div>
             <p className="text-xs font-semibold text-zinc-200">Vector Index Ready</p>
             <div className="text-[10px] text-zinc-400 mt-1.5 space-y-0.5 font-mono">
-              <p>347 Documents</p>
-              <p>3 Integrations Connected</p>
+              <p>Workspace Connected</p>
+              <p>Sync status: {syncStatus}</p>
             </div>
-            <p className="text-[9px] text-zinc-600 mt-2 font-mono">Last Sync 2 mins ago</p>
           </div>
         </div>
       </div>
 
-      {/* Cursor-style Footer */}
-      <div className="p-4 border-t border-zinc-900 bg-zinc-950/60 space-y-4">
-        {/* Workspace Selector */}
-        <div className="flex items-center justify-between text-zinc-400 hover:text-white transition cursor-pointer">
-          <div className="flex items-center gap-2">
-            <Briefcase className="w-3.5 h-3.5 text-zinc-500" />
-            <span className="font-semibold text-[11px] font-sans">Acme Workspace</span>
-          </div>
-          <ChevronDown className="w-3 h-3 text-zinc-650" />
-        </div>
-
+      {/* Footer Profile & Logout */}
+      <div className="p-4 border-t border-zinc-900 bg-zinc-950/60 space-y-3 shrink-0">
         {/* Storage Used */}
         <div className="space-y-1.5">
           <div className="flex justify-between text-[9px] text-zinc-500 font-mono">
             <span>Storage Used</span>
-            <span>4.2 GB / 10 GB</span>
+            <span>0.0 GB / 10 GB</span>
           </div>
           <div className="w-full h-1 bg-zinc-900 rounded-full overflow-hidden">
-            <div className="bg-indigo-500 h-full w-[42%]" />
+            <div className="bg-indigo-500 h-full w-0" />
           </div>
         </div>
 
@@ -124,18 +134,31 @@ export default function Sidebar({ currentTab, setCurrentTab, syncStatus }: Sideb
           Upgrade to Pro
         </button>
 
-        {/* Profile */}
-        <div className="flex items-center justify-between pt-2 border-t border-zinc-900/50">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center font-bold text-[10px] text-zinc-300 font-mono">
-              JD
+        {/* User Profile Info & Logout */}
+        {user && (
+          <div className="flex items-center justify-between pt-2 border-t border-zinc-900/50">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-7 h-7 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center font-bold text-[10px] text-zinc-300 font-mono shrink-0">
+                {user.full_name ? getInitials(user.full_name) : getInitials(user.email)}
+              </div>
+              <div className="truncate">
+                <p className="text-[11px] font-semibold text-zinc-300 leading-none truncate">
+                  {user.full_name || "Enterprise User"}
+                </p>
+                <p className="text-[9px] text-zinc-500 font-mono mt-0.5 truncate">
+                  {user.email}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-[11px] font-semibold text-zinc-300 leading-none">John Doe</p>
-              <p className="text-[9px] text-zinc-500 font-mono mt-0.5">john@acme.com</p>
-            </div>
+            <button
+              onClick={() => logout()}
+              className="p-1.5 hover:bg-zinc-900 border border-transparent hover:border-zinc-850 rounded-lg text-zinc-500 hover:text-red-400 transition-all cursor-pointer"
+              title="Sign Out"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
           </div>
-        </div>
+        )}
       </div>
     </aside>
   );
