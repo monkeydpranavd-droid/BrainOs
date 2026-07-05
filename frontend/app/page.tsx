@@ -47,7 +47,7 @@ export default function Page() {
   }
 
   return (
-    <div className="flex bg-zinc-950 text-zinc-100 min-h-screen">
+    <div className="flex flex-col md:flex-row bg-zinc-950 text-zinc-100 min-h-screen">
       {/* Navigation Sidebar */}
       <Sidebar
         currentTab={currentTab}

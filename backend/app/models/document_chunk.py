@@ -47,6 +47,9 @@ class DocumentChunk(Base):
         String(32), nullable=False, default="pending", server_default="pending",
         comment="One of: pending, processing, completed, failed",
     )
+    
+    from pgvector.sqlalchemy import Vector
+    embedding: Mapped[Optional[list]] = mapped_column(Vector(1536), nullable=True)
 
     # ── Relationships ─────────────────────────────────────────────────────────
     document: Mapped["Document"] = relationship("Document", back_populates="chunks")

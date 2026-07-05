@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.core.exceptions import (
     OrganizationNotFoundError,
     OrganizationSlugTakenError,
+    InsufficientPermissionsError,
 )
 from app.models.organization import Organization
 from app.models.organization_member import OrganizationMember
@@ -47,6 +48,7 @@ class OrganizationService:
         industry: Optional[str] = None,
         website: Optional[str] = None,
         description: Optional[str] = None,
+        commit: bool = True,
     ) -> Organization:
         # Generate slug if not provided
         org_slug = slugify(slug or name)
@@ -85,8 +87,11 @@ class OrganizationService:
             action_metadata={"name": name, "slug": org_slug},
         )
 
-        self._db.commit()
-        self._db.refresh(org)
+        if commit:
+            self._db.commit()
+            self._db.refresh(org)
+        else:
+            self._db.flush()
         return org
 
     def get_organization(self, org_id: uuid.UUID) -> Organization:
@@ -159,3 +164,48 @@ class OrganizationService:
         # Verify organization exists
         self.get_organization(org_id)
         return self._member_repo.list_org_members(org_id)
+
+    def remove_member(self, org_id: uuid.UUID, target_user_id: uuid.UUID, actor_user_id: uuid.UUID) -> None:
+        # Verify organization exists
+        self.get_organization(org_id)
+        
+        # Check target membership
+        member = self._member_repo.get_org_member(org_id, target_user_id)
+        if not member:
+            from app.core.exceptions import UserNotFoundError
+            raise UserNotFoundError("User is not a member of this organization.")
+            
+        # Actor cannot remove themselves (they must leave or delete org)
+        if target_user_id == actor_user_id:
+            raise InsufficientPermissionsError("You cannot remove yourself from the organization.")
+            
+        # Get actor membership role
+        actor_member = self._member_repo.get_org_member(org_id, actor_user_id)
+        if not actor_member:
+            raise InsufficientPermissionsError("You are not a member of this organization.")
+            
+        # Role hierarchy check:
+        # Owners can remove anyone (except themselves).
+        # Admins can remove members and guests, but not owners or other admins.
+        # Members/guests cannot remove anyone.
+        if actor_member.role == "owner":
+            pass
+        elif actor_member.role == "admin":
+            if member.role in ("owner", "admin"):
+                raise InsufficientPermissionsError("Admins cannot remove organization owners or other admins.")
+        else:
+            raise InsufficientPermissionsError("Only organization owners or admins may remove members.")
+
+        self._member_repo.remove_org_member(member)
+
+        # Log Audit event
+        self._audit_repo.create(
+            organization_id=org_id,
+            user_id=actor_user_id,
+            action="Member Removed",
+            entity_type="organization_member",
+            entity_id=str(target_user_id),
+            action_metadata={"removed_user_id": str(target_user_id)},
+        )
+
+        self._db.commit()

@@ -19,6 +19,8 @@ from app.core.exceptions import SupabaseError
 
 logger = logging.getLogger(__name__)
 
+_buckets_verified = False
+
 
 class StorageService:
     def __init__(self) -> None:
@@ -31,8 +33,13 @@ class StorageService:
 
     def _ensure_buckets_exist(self) -> None:
         """Verify that recommended storage buckets exist. If not, create them."""
+        global _buckets_verified
+        if _buckets_verified:
+            return
+
         if not self.client or self._is_placeholder():
             logger.info("Using local filesystem fallback (bucket check skipped).")
+            _buckets_verified = True
             return
 
         try:
@@ -43,8 +50,12 @@ class StorageService:
                 if bucket not in existing_bucket_names:
                     logger.info("Bucket '%s' not found. Creating it...", bucket)
                     self.client.storage.create_bucket(bucket, options={"public": False})
+            _buckets_verified = True
         except Exception as e:
             logger.error("Failed to verify/create Supabase storage buckets: %s", e)
+            # We set True to avoid spamming failed checks repeatedly on every request.
+            # It will still fall back to local storage on operations if needed.
+            _buckets_verified = True
 
     def _is_placeholder(self) -> bool:
         key = settings.SUPABASE_SERVICE_ROLE_KEY

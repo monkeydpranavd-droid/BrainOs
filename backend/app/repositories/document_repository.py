@@ -112,6 +112,7 @@ class DocumentRepository:
         page: Optional[int] = None,
         token_count: int = 0,
         chunk_metadata: Optional[dict] = None,
+        embedding: Optional[List[float]] = None,
     ) -> DocumentChunk:
         chunk = DocumentChunk(
             document_id=document_id,
@@ -120,7 +121,8 @@ class DocumentRepository:
             page=page,
             token_count=token_count,
             chunk_metadata=chunk_metadata,
-            embedding_status="pending",
+            embedding_status="completed" if embedding else "pending",
+            embedding=embedding,
         )
         self._db.add(chunk)
         self._db.flush()
@@ -156,4 +158,43 @@ class DocumentRepository:
             )
             .limit(limit)
         )
+        return self._db.scalars(stmt).all()
+
+    def search_chunks_vector(
+        self,
+        workspace_id: uuid.UUID,
+        query_vector: list[float],
+        limit: int = 10,
+    ) -> Sequence[DocumentChunk]:
+        """Query similar chunks in a workspace using pgvector cosine distance."""
+        stmt = (
+            select(DocumentChunk)
+            .join(Document)
+            .where(Document.workspace_id == workspace_id)
+            .where(DocumentChunk.embedding != None)
+            .order_by(DocumentChunk.embedding.cosine_distance(query_vector))
+            .limit(limit)
+        )
+        return self._db.scalars(stmt).all()
+
+    def search_chunks_vector_filtered(
+        self,
+        org_id: uuid.UUID,
+        workspace_id: uuid.UUID,
+        query_vector: list[float],
+        document_ids: Optional[list[uuid.UUID]] = None,
+        limit: int = 10,
+    ) -> Sequence[DocumentChunk]:
+        """Query similar chunks with metadata filtering and document narrowing."""
+        stmt = (
+            select(DocumentChunk)
+            .join(Document)
+            .where(Document.organization_id == org_id)
+            .where(Document.workspace_id == workspace_id)
+            .where(DocumentChunk.embedding != None)
+        )
+        if document_ids:
+            stmt = stmt.where(Document.id.in_(document_ids))
+            
+        stmt = stmt.order_by(DocumentChunk.embedding.cosine_distance(query_vector)).limit(limit)
         return self._db.scalars(stmt).all()

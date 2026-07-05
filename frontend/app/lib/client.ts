@@ -23,25 +23,17 @@ export function clearAuthToken(): void {
 }
 
 // ── Request interceptor ───────────────────────────────────────────────────────
-async function applyRequestInterceptor(headers: Record<string, string>): Promise<Record<string, string>> {
+function applyRequestInterceptor(headers: Record<string, string>): Record<string, string> {
   const mutated = { ...headers };
 
-  if (typeof window !== "undefined") {
-    // Client-side execution
-    if (_authToken) {
-      mutated["Authorization"] = `Bearer ${_authToken}`;
-    } else {
-      try {
-        const { supabaseClient } = await import("./supabase/client");
-        const { data: { session } } = await supabaseClient.auth.getSession();
-        if (session?.access_token) {
-          mutated["Authorization"] = `Bearer ${session.access_token}`;
-        }
-      } catch (err) {
-        // Fallback or unauthenticated
-      }
-    }
+  if (_authToken) {
+    mutated["Authorization"] = `Bearer ${_authToken}`;
   }
+  // Note: if _authToken is not set, the request proceeds without Authorization.
+  // AuthProvider.tsx is responsible for calling setAuthToken() before making API calls.
+  // We do NOT call supabaseClient.auth.getSession() here because:
+  // 1. It is async and causes race conditions during parallel requests on mount.
+  // 2. AuthProvider already handles token management via onAuthStateChange.
 
   return mutated;
 }
@@ -102,7 +94,7 @@ export async function request<T>(
 ): Promise<T> {
   const { headers = {}, timeoutMs = DEFAULT_TIMEOUT_MS, ...rest } = options;
 
-  const interceptorHeaders = await applyRequestInterceptor(headers);
+  const interceptorHeaders = applyRequestInterceptor(headers);
   const isMultipart = rest.body instanceof FormData;
 
   const mergedHeaders: Record<string, string> = {

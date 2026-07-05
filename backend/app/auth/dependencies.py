@@ -31,37 +31,39 @@ logger = logging.getLogger(__name__)
 _bearer_scheme = HTTPBearer(auto_error=False)
 
 
-# ── Primary dependency ────────────────────────────────────────────────────────
+# ── Primary dependency (Bypassed for Dev Mode) ────────────────────────────────
 
 async def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer_scheme),
     db: Session = Depends(get_db),
 ) -> CurrentUser:
-    if credentials is None:
-        raise MissingTokenError()
+    from app.services.auth_service import AuthService
+    from app.schemas.auth import TokenPayload
 
+    # Static developer user payload — JIT provisions organization & workspace if missing
+    dev_payload = TokenPayload(
+        sub="00000000-0000-0000-0000-000000000000",
+        email="developer@brainos.ai",
+        role="owner",
+        user_metadata={"full_name": "Developer Owner"},
+        iss="developer",
+        aud="authenticated"
+    )
     service = AuthService(db)
-    payload = service.verify_token_from_header(f"Bearer {credentials.credentials}")
-    user = service.get_or_create_user(payload)
+    user = service.get_or_create_user(dev_payload)
 
-    logger.debug("Authenticated user %s (role=%s)", user.id, user.role)
+    logger.debug("Authenticated bypass user %s (role=%s)", user.id, user.role)
     return CurrentUser.model_validate(user)
 
 
-# ── Optional dependency ───────────────────────────────────────────────────────
+# ── Optional dependency (Bypassed for Dev Mode) ───────────────────────────────
 
 async def get_optional_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer_scheme),
     db: Session = Depends(get_db),
 ) -> Optional[CurrentUser]:
-    if credentials is None:
-        return None
-
     try:
-        service = AuthService(db)
-        payload = service.verify_token_from_header(f"Bearer {credentials.credentials}")
-        user = service.get_or_create_user(payload)
-        return CurrentUser.model_validate(user)
+        return await get_current_user(credentials, db)
     except Exception:
         return None
 

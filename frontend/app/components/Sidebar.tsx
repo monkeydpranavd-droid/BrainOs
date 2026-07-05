@@ -47,7 +47,7 @@ export default function Sidebar({ currentTab, setCurrentTab, syncStatus }: Sideb
   };
 
   return (
-    <aside className="w-64 border-r border-zinc-800 bg-zinc-950 flex flex-col justify-between h-screen sticky top-0">
+    <aside className="w-full md:w-64 border-b md:border-b-0 md:border-r border-zinc-800 bg-zinc-950 flex flex-col justify-between h-auto md:h-screen md:sticky top-0 shrink-0">
       <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
         {/* Brand Logo */}
         <div className="p-6 border-b border-zinc-850 flex items-center justify-between shrink-0">
@@ -85,7 +85,7 @@ export default function Sidebar({ currentTab, setCurrentTab, syncStatus }: Sideb
                 onClick={() => setCurrentTab(item.id)}
                 className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200 cursor-pointer ${
                   isActive 
-                    ? "bg-zinc-900 text-indigo-400 border border-zinc-805 shadow-[0_0_15px_rgba(99,102,241,0.08)]" 
+                    ? "bg-zinc-900 text-indigo-400 border border-zinc-800 shadow-[0_0_15px_rgba(99,102,241,0.08)]" 
                     : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/50 border border-transparent"
                 }`}
               >

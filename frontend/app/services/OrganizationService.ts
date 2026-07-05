@@ -25,4 +25,8 @@ export const OrganizationService = {
   async acceptInvite(token: string): Promise<OrganizationMember> {
     return apiClient.post<OrganizationMember>("/organizations/accept-invite", { token });
   },
+
+  async removeMember(orgId: string, userId: string): Promise<void> {
+    return apiClient.delete<void>(`/organizations/${orgId}/members/${userId}`);
+  },
 };

@@ -1,8 +1,8 @@
 """
 app/knowledge/chunking.py
 ─────────────────────────────────────────────────────────────────────────────
-Chunking algorithm to segment parsed document text into retrieval window slices.
-Prepares the data for Sprint 5 (vector storage and retrieval).
+Ingestion chunker. Splits extracted text into slices of 1000 characters
+with a 150 character overlap, preserving sentence boundaries where possible.
 Compatible with Python 3.9.
 """
 
@@ -14,50 +14,68 @@ from typing import List, Dict, Any
 
 def chunk_text(
     text: str,
-    chunk_size_words: int = 400,
-    chunk_overlap_words: int = 50,
+    chunk_size_chars: int = 1000,
+    chunk_overlap_chars: int = 150,
 ) -> List[Dict[str, Any]]:
     """
-    Split text into chunks based on word count with a sliding overlap window.
-    Returns list of dicts: {"content": str, "token_count": int, "index": int}
+    Split text into character-based chunks with a sliding overlap.
+    Averages 1000 characters per chunk, with 150 characters overlap.
+    Optimizes for sentence boundaries (ends chunks at periods/newlines when possible).
     """
     if not text or not text.strip():
         return []
 
-    # Clean whitespace and tokenize by word
-    words = [w for w in re.split(r"\s+", text) if w]
-    total_words = len(words)
+    # Normalize whitespace
+    text = re.sub(r"[ \t]+", " ", text).strip()
+    total_len = len(text)
     
-    if total_words == 0:
-        return []
+    if total_len <= chunk_size_chars:
+        # Fits in a single chunk
+        return [{
+            "content": text,
+            "token_count": max(1, int(total_len / 4)), # Standard rough estimate: ~4 chars per token
+            "chunk_index": 0
+        }]
 
     chunks = []
     chunk_index = 0
     start_idx = 0
-    
-    while start_idx < total_words:
-        end_idx = min(start_idx + chunk_size_words, total_words)
-        chunk_words = words[start_idx:end_idx]
-        chunk_content = " ".join(chunk_words)
+
+    while start_idx < total_len:
+        end_idx = min(start_idx + chunk_size_chars, total_len)
         
-        # Approximate tokens (standard ratio: 1 word ~ 1.3 tokens)
-        token_estimate = int(len(chunk_words) * 1.3)
+        # Optimize boundary: look back up to 80 chars for a sentence/paragraph end (. or \n or ? or !)
+        if end_idx < total_len:
+            boundary_idx = -1
+            lookback_limit = max(start_idx + chunk_size_chars - 80, start_idx + chunk_overlap_chars)
+            for idx in range(end_idx - 1, lookback_limit - 1, -1):
+                if text[idx] in (".", "\n", "?", "!"):
+                    boundary_idx = idx + 1
+                    break
+            if boundary_idx != -1:
+                end_idx = boundary_idx
+
+        chunk_content = text[start_idx:end_idx].strip()
         
-        chunks.append({
-            "content": chunk_content,
-            "token_count": max(1, token_estimate),
-            "chunk_index": chunk_index,
-        })
-        
-        chunk_index += 1
-        # Advance starting point by size minus overlap
-        step = chunk_size_words - chunk_overlap_words
-        if step <= 0:
-            step = chunk_size_words
-        start_idx += step
-        
-        # Guard to prevent infinite loop if end reached
-        if end_idx == total_words:
+        # Skip empty chunks
+        if chunk_content:
+            token_estimate = max(1, int(len(chunk_content) / 4))
+            chunks.append({
+                "content": chunk_content,
+                "token_count": token_estimate,
+                "chunk_index": chunk_index
+            })
+            chunk_index += 1
+
+        # Advance start_idx: next chunk starts at end_idx minus overlap
+        next_start = end_idx - chunk_overlap_chars
+        if next_start <= start_idx:
+            # Ensure forward progress
+            start_idx = end_idx
+        else:
+            start_idx = next_start
+
+        if end_idx == total_len:
             break
-            
+
     return chunks

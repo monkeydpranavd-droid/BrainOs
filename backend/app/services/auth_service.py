@@ -101,13 +101,37 @@ class AuthService:
         full_name: str | None = user_metadata.get("full_name") or user_metadata.get("name")
         avatar_url: str | None = user_metadata.get("avatar_url") or user_metadata.get("picture")
 
-        return self._repo.create(
+        # 1. Create User
+        user = self._repo.create(
             supabase_user_id=payload.user_uuid,
             email=email,
             full_name=full_name,
             avatar_url=avatar_url,
             role=UserRole.MEMBER,
         )
+
+        # 2. Provision Tenant (Organization & Workspace) transactionally
+        # Import services locally to avoid circular dependencies
+        from app.services.organization_service import OrganizationService
+        from app.services.workspace_service import WorkspaceService
+
+        org_name = f"{full_name}'s Org" if full_name else f"{email.split('@')[0].capitalize()}'s Org"
+        org_service = OrganizationService(self._db)
+        org = org_service.create_organization(
+            name=org_name,
+            creator_user_id=user.id,
+            commit=False
+        )
+
+        ws_service = WorkspaceService(self._db)
+        ws_service.create_workspace(
+            organization_id=org.id,
+            name="Default Workspace",
+            created_by=user.id,
+            commit=False
+        )
+
+        return user
 
     # ── Session info ──────────────────────────────────────────────────────────
 

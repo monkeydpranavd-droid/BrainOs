@@ -96,9 +96,8 @@ async def update_org(
     current_user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> OrganizationResponse:
-    # Authorization check via require_org_admin dependency (triggers InsufficientPermissionsError if fails)
-    # We do a nested Depends lookup in Python or inject it directly.
-    # In FastAPI, we can do it directly:
+    # Ensure client has admin or owner privileges within the organization
+    await require_org_admin(org_id, current_user, db)
     service = OrganizationService(db)
     org = service.update_organization(
         org_id=org_id,
@@ -122,6 +121,8 @@ async def delete_org(
     current_user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> None:
+    # Ensure client is the organization owner
+    await require_org_owner(org_id, current_user, db)
     service = OrganizationService(db)
     service.delete_organization(org_id, current_user.id)
 
@@ -137,6 +138,8 @@ async def invite_user(
     current_user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> InvitationResponse:
+    # Ensure client has admin or owner privileges within the organization
+    await require_org_admin(org_id, current_user, db)
     service = InvitationService(db)
     inv = service.create_invitation(
         org_id=org_id,
@@ -157,9 +160,28 @@ async def list_org_members(
     current_user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> List[OrganizationMemberResponse]:
+    # Ensure client is a member of the organization to list members
+    await get_current_organization(org_id, current_user, db)
     service = OrganizationService(db)
     members = service.list_members(org_id)
     return [OrganizationMemberResponse.model_validate(m) for m in members]
+
+
+@router.delete(
+    "/{org_id}/members/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Remove a member from the organization (admin/owner only)",
+)
+async def remove_org_member(
+    org_id: uuid.UUID,
+    user_id: uuid.UUID,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    # Ensure client has admin or owner privileges within the organization
+    await require_org_admin(org_id, current_user, db)
+    service = OrganizationService(db)
+    service.remove_member(org_id=org_id, target_user_id=user_id, actor_user_id=current_user.id)
 
 
 @router.post(

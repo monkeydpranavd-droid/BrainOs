@@ -34,6 +34,7 @@ from app.schemas.document import (
     DocumentResponse,
     DocumentUpdate,
     DocumentVersionResponse,
+    DocumentChunkResponse,
 )
 from app.schemas.user import CurrentUser
 from app.services.document_service import DocumentService
@@ -239,6 +240,111 @@ async def assign_tag(
 
     updated = service.assign_tag(doc_id, tag_name, color)
     return DocumentResponse.model_validate(updated)
+
+
+@router.post(
+    "/upload-chunk",
+    status_code=status.HTTP_200_OK,
+    summary="Upload a single file chunk",
+)
+async def upload_chunk(
+    session_id: str = Form(...),
+    chunk_index: int = Form(...),
+    file: UploadFile = File(...),
+) -> dict:
+    import os
+    from pathlib import Path
+
+    chunks_dir = Path(__file__).resolve().parent.parent.parent.parent / "uploads" / "chunks" / session_id
+    chunks_dir.mkdir(parents=True, exist_ok=True)
+
+    chunk_file = chunks_dir / f"{chunk_index}"
+    with open(chunk_file, "wb") as f:
+        f.write(await file.read())
+
+    return {"message": f"Chunk {chunk_index} uploaded successfully."}
+
+
+@router.post(
+    "/assemble-chunks",
+    response_model=DocumentResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Assemble uploaded chunks and process document",
+)
+async def assemble_chunks(
+    background_tasks: BackgroundTasks,
+    session_id: str = Form(...),
+    total_chunks: int = Form(...),
+    organization_id: uuid.UUID = Form(...),
+    workspace_id: uuid.UUID = Form(...),
+    filename: str = Form(...),
+    mime_type: str = Form(...),
+    folder_id: Optional[uuid.UUID] = Form(None),
+    knowledge_base_id: Optional[uuid.UUID] = Form(None),
+    change_notes: Optional[str] = Form(None),
+    current_user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> DocumentResponse:
+    import shutil
+    from pathlib import Path
+    from fastapi import HTTPException
+
+    await get_current_organization(organization_id, current_user, db)
+    await get_current_workspace(workspace_id, current_user, db)
+
+    member_repo = MemberRepository(db)
+    org_member = member_repo.get_org_member(organization_id, current_user.id)
+    if not org_member or org_member.role == "guest":
+        raise InsufficientPermissionsError("Guests are not permitted to upload files.")
+
+    chunks_dir = Path(__file__).resolve().parent.parent.parent.parent / "uploads" / "chunks" / session_id
+    if not chunks_dir.exists():
+        raise HTTPException(status_code=400, detail="Upload session not found.")
+
+    assembled_bytes = bytearray()
+    for idx in range(total_chunks):
+        chunk_file = chunks_dir / f"{idx}"
+        if not chunk_file.exists():
+            raise HTTPException(status_code=400, detail=f"Missing chunk {idx}.")
+        with open(chunk_file, "rb") as f:
+            assembled_bytes.extend(f.read())
+
+    shutil.rmtree(chunks_dir, ignore_errors=True)
+
+    service = DocumentService(db)
+    doc = service.upload_document(
+        organization_id=organization_id,
+        workspace_id=workspace_id,
+        uploaded_by=current_user.id,
+        filename=filename,
+        file_bytes=bytes(assembled_bytes),
+        mime_type=mime_type or "application/octet-stream",
+        background_tasks=background_tasks,
+        folder_id=folder_id,
+        knowledge_base_id=knowledge_base_id,
+        change_notes=change_notes,
+    )
+    return DocumentResponse.model_validate(doc)
+
+
+@router.get(
+    "/{doc_id}/chunks",
+    response_model=List[DocumentChunkResponse],
+    summary="Get document chunks",
+)
+async def get_document_chunks(
+    doc_id: uuid.UUID,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> List[DocumentChunkResponse]:
+    service = DocumentService(db)
+    doc = service.get_document(doc_id)
+    await get_current_workspace(doc.workspace_id, current_user, db)
+
+    from app.repositories.document_repository import DocumentRepository
+    repo = DocumentRepository(db)
+    chunks = repo.list_chunks(doc_id)
+    return [DocumentChunkResponse.model_validate(c) for c in chunks]
 
 
 @router.get(

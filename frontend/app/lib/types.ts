@@ -132,7 +132,7 @@ export interface Document {
   storage_path: string;
   mime_type: string;
   file_size: number;
-  status: "pending" | "processing" | "processed" | "failed";
+  status: "uploaded" | "stored" | "metadata" | "extracted" | "chunked" | "embedding_pending" | "ready" | "failed";
   checksum: string;
   current_version: number;
   summary: string | null;

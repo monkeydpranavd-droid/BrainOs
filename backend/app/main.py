@@ -34,6 +34,7 @@ from app.api.routes.documents import router as documents_router
 from app.api.routes.folders import router as folders_router
 from app.api.routes.knowledge_bases import router as knowledge_bases_router
 from app.api.routes.search import router as search_router
+from app.api.routes.chat import router as chat_router
 
 from app.core.config import settings
 from app.core.exceptions import BrainOSException
@@ -117,6 +118,7 @@ app.include_router(documents_router, prefix=API_PREFIX)
 app.include_router(folders_router, prefix=API_PREFIX)
 app.include_router(knowledge_bases_router, prefix=API_PREFIX)
 app.include_router(search_router, prefix=API_PREFIX)
+app.include_router(chat_router, prefix=API_PREFIX)
 
 # ── Root ──────────────────────────────────────────────────────────────────────
 
@@ -136,6 +138,49 @@ async def on_startup():
         settings.APP_ENV,
         settings.APP_VERSION,
     )
+    # Validate SUPABASE_SERVICE_ROLE_KEY
+    key = settings.SUPABASE_SERVICE_ROLE_KEY
+    is_placeholder = (
+        not key
+        or key == "your-supabase-service-role-key-here"
+        or "publishable" in key
+        or key == "sb_service_role_mock_key_value"
+    )
+    if is_placeholder:
+        if settings.APP_ENV == "production":
+            logger.critical(
+                "CRITICAL: SUPABASE_SERVICE_ROLE_KEY is missing or invalid. "
+                "Configure the correct service_role key in your .env file."
+            )
+            raise RuntimeError(
+                "SUPABASE_SERVICE_ROLE_KEY is missing or invalid! "
+                "Configure it in your .env file."
+            )
+        else:
+            logger.warning(
+                "SUPABASE_SERVICE_ROLE_KEY is a placeholder — storage admin "
+                "operations will fail. Set a real key for full functionality."
+            )
+
+    # Pre-warm the database connection pool so the first user request
+    # doesn't pay the cold-start TCP+SSL handshake cost (~1.5s).
+    try:
+        from app.db.session import engine
+        from app.db.base import Base
+        from sqlalchemy import text as sa_text
+        import asyncio
+
+        def _warm_pool():
+            # JIT-provision any new database tables (e.g. conversations, chat_messages)
+            Base.metadata.create_all(bind=engine)
+            with engine.connect() as conn:
+                conn.execute(sa_text("SELECT 1"))
+            logger.info("Database connection pool pre-warmed & tables verified.")
+
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, _warm_pool)
+    except Exception as exc:
+        logger.warning("DB pool pre-warm failed (non-fatal): %s", exc)
 
 
 @app.on_event("shutdown")

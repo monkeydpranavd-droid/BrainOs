@@ -16,10 +16,14 @@ class TokenPayload(BaseModel):
     email: Optional[str] = None
     role: Optional[str] = None
     aud: Optional[Union[str, List[str]]] = None
+    iss: Optional[str] = None
     exp: Optional[int] = None
     iat: Optional[int] = None
     app_metadata: Optional[Dict] = None
     user_metadata: Optional[Dict] = None
+
+    class Config:
+        extra = "allow"  # Allow extra JWT claims (phone, amr, session_id, etc.)
 
     @property
     def user_uuid(self) -> uuid.UUID:

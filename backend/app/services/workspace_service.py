@@ -37,6 +37,7 @@ class WorkspaceService:
         created_by: uuid.UUID,
         description: Optional[str] = None,
         visibility: str = "private",
+        commit: bool = True,
     ) -> Workspace:
         # Create workspace
         ws = self._ws_repo.create(
@@ -64,8 +65,11 @@ class WorkspaceService:
             action_metadata={"name": name, "visibility": visibility},
         )
 
-        self._db.commit()
-        self._db.refresh(ws)
+        if commit:
+            self._db.commit()
+            self._db.refresh(ws)
+        else:
+            self._db.flush()
         return ws
 
     def get_workspace(self, ws_id: uuid.UUID) -> Workspace:
